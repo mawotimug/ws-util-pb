@@ -1,8 +1,11 @@
 ; ========= Переменные и константы =========
 
-Event.l = 0 ; Хранит события ОС
-sClip1.s = GetClipboardText()
-sClip2.s = ""
+EventID.l = 0 ; Хранит события ОС
+sClipBoard.s = GetClipboardText()
+Global getStrText$ ; clipboard text
+
+; код события изменения буфера обмена
+#WM_CLIPBOARDUPDATE = $031D
 
 Enumeration
   #WIN_MAIN
@@ -25,6 +28,7 @@ Declare Dejat()
 Declare Peren()
 Declare Peren2()
 Declare Deraz()
+Declare Winproc(hwnd, msg, wParam, lParam)
 
 ; ========= Рисуем интерфейс =========
   
@@ -36,28 +40,52 @@ ButtonGadget(#BUTTON_DEJAT,  110, 10,  70,  25, "ВАР")
 ButtonGadget(#BUTTON_PEREN,  20,  50,  70,  25, "Перенос")
 ButtonGadget(#BUTTON_PEREN2, 110, 50,  70,  25, "Перенос2")
 ButtonGadget(#BUTTON_DERAZ,  50,  90,  70,  25, "Деразрядка")
-TextGadget(#TEXT,            20,  130, 160, 25, sClip1)
+TextGadget(#TEXT,            20,  130, 160, 25, sClipBoard)
 
-StickyWindow(#WIN_MAIN,1)
+; main window topmost
+
+StickyWindow(#WIN_MAIN,1) 
+
+
+
+; 7 строк, чтобы "слушать" обновления ClipBoard
+
+OpenLibrary(0, "user32.dll")
+Prototype AddClipboardFormatListener(hwnd)
+Prototype RemoveClipboardFormatListener(hwnd)
+Global AddClipboardFormatListener_.AddClipboardFormatListener = GetFunction(0, "AddClipboardFormatListener")
+Global RemoveClipboardFormatListener_.RemoveClipboardFormatListener = GetFunction(0, "RemoveClipboardFormatListener")
+SetWindowCallback(@WinProc())
+AddClipboardFormatListener_(WindowID(#WIN_MAIN))
 
 ; ========= Ждём действий =========
 
 Repeat
-  Event = WindowEvent()
-  If Event = #PB_Event_Gadget
+  EventID = WaitWindowEvent()
+  If EventID = #PB_Event_Gadget
       SelectEventGadget()
   EndIf
-  sClip2 = GetClipboardText()
-  If sClip1 <> sClip2
-      sClip1 = sClip2
-      SetGadgetText(#TEXT, sClip2)
-  EndIf
-  Delay(10)
-Until Event = #PB_Event_CloseWindow
+Until EventID = #PB_Event_CloseWindow
+
+; ========= Завершаем ============
+RemoveClipboardFormatListener_(WindowID(#WIN_MAIN))
+CloseLibrary(0)
 
 End
 
-; ==================================
+;---------------------------------------------
+;        End of Main Loop Code
+;---------------------------------------------
+
+Procedure WinProc(hwnd, msg, wParam, lParam)
+  result = #PB_ProcessPureBasicEvents
+  Select msg
+    Case #WM_CLIPBOARDUPDATE
+      getStrText$ = GetClipboardText()
+      SetGadgetText(#TEXT, getStrText$)
+  EndSelect
+  ProcedureReturn result
+EndProcedure
 
 ; действия по нажатию кнопок
 Procedure SelectEventGadget()
@@ -87,22 +115,27 @@ EndProcedure
 
 ; шаблон Перенос
 Procedure Peren()
-  MessageRequester("peren", "PERENOS", #PB_MessageRequester_Ok)
+  Protected Text$ = RemoveString(getStrText$, "-")
+  Text$ = "{{Перенос|" + Text$ + "|…}}"
+  SetClipboardText(Text$)
 EndProcedure
 
 ; шаблон Перенос2
 Procedure Peren2()
-  MessageRequester("peren2", "PERENOS2", #PB_MessageRequester_Ok)
+  Protected Text$ = "{{Перенос2|…|" + getStrText$ + "}}"
+  SetClipboardText(Text$)
 EndProcedure
 
-; убираем разрядку выделенного текста
+; убираем разрядку текста
 Procedure Deraz()
-  MessageRequester("deraz", "DERAZ", #PB_MessageRequester_Ok)
+  Protected Text$ = RemoveString(getStrText$, " ")
+  SetClipboardText(Text$)
 EndProcedure
 
 ; IDE Options = PureBasic 5.31 (Windows - x86)
-; CursorPosition = 40
-; FirstLine = 39
+; CursorPosition = 124
+; FirstLine = 103
 ; Folding = --
 ; EnableUnicode
 ; EnableXP
+; Executable = wsutils.exe
